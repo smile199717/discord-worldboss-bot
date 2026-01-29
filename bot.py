@@ -8,8 +8,7 @@ import pytz
 from discord.ui import View, Button
 
 # ===== Token =====
-with open("token.txt", "r", encoding="utf-8") as f:
-    TOKEN = f.read().strip()
+TOKEN = os.getenv("DISCORD_TOKEN")  # 從 Render 環境變數讀
 if not TOKEN:
     raise RuntimeError("❌ DISCORD_TOKEN 沒有設定到環境變數")
 
@@ -116,3 +115,4 @@ async def on_ready():
     print(f"✅ 已登入 {bot.user}")
 
 bot.run(TOKEN)
+
