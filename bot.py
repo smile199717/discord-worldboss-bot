@@ -108,6 +108,52 @@ async def send_role_panel(ctx):
     )
     await ctx.respond(embed=embed, view=RoleSelectView())
 
+# ===== /王重生表 =====
+@bot.slash_command(
+    name="王重生表",
+    description="列出所有世界王的重生時間",
+    guild_ids=[GUILD_ID]
+)
+async def world_boss_list(ctx: discord.ApplicationContext):
+    tz = pytz.timezone("Asia/Taipei")
+    now = datetime.datetime.now(tz)
+
+    rows = sheet.get_all_records()
+
+    if not rows:
+        await ctx.respond("目前沒有已登記的世界王資料")
+        return
+
+    # 建立 Embed
+    embed = discord.Embed(
+        title="📜 世界王重生表",
+        color=0x3498DB
+    )
+
+    # 標題欄位
+    header = f"{'王名稱':<12} {'重生時間':<6} {'剩餘時間(分鐘)':<12}"
+    table_lines = [header, "―" * len(header)]  # 分隔線
+
+    for row in rows:
+        if not row.get("死亡時間"):
+            continue  # 沒死亡時間就跳過
+
+        death_time = tz.localize(
+            datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+        )
+        respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
+        remaining_minutes = int((respawn_time - now).total_seconds() // 60)
+        if remaining_minutes < 0:
+            remaining_minutes = 0
+
+        line = f"{row['王名稱']:<12} {respawn_time.strftime('%H:%M'):<6} {remaining_minutes:<12}"
+        table_lines.append(line)
+
+    # 將整個表格用 code block 包起來
+    embed.description = "```" + "\n".join(table_lines) + "```"
+
+    await ctx.respond(embed=embed)
+
 # ===== 啟動 =====
 @bot.event
 async def on_ready():
@@ -115,4 +161,5 @@ async def on_ready():
     print(f"✅ 已登入 {bot.user}")
 
 bot.run(TOKEN)
+
 
