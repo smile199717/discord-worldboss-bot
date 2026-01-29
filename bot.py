@@ -182,6 +182,75 @@ async def world_boss_list(ctx: discord.ApplicationContext):
 
     await ctx.respond(embed=embed)
 
+# ===== 提醒王重生 =====
+async def world_boss_reminder():
+    tz = pytz.timezone("Asia/Taipei")
+    await bot.wait_until_ready()
+
+    reminded_groups = set()  # 記錄已提醒過的群組（依第一隻王）
+
+    while not bot.is_closed():
+        now = datetime.datetime.now(tz)
+        rows = sheet.get_all_records()
+
+        # 先收集所有即將重生的王
+        upcoming = []
+        for row in rows:
+            if not row.get("死亡時間"):
+                continue
+            death_time = tz.localize(
+                datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+            )
+            respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
+            upcoming.append((respawn_time, row["王名稱"]))
+
+        if not upcoming:
+            await asyncio.sleep(60)
+            continue
+
+        # 依重生時間排序
+        upcoming.sort(key=lambda x: x[0])
+
+        # 分組：同時期王 30 分鐘內的視為一組
+        groups = []
+        current_group = [upcoming[0]]
+        for r in upcoming[1:]:
+            if (r[0] - current_group[0][0]).total_seconds() <= 30 * 60:  # 30分鐘內
+                current_group.append(r)
+            else:
+                groups.append(current_group)
+                current_group = [r]
+        groups.append(current_group)
+
+        # 處理每個群組，只在第一隻王前10分鐘提醒一次
+        for group in groups:
+            first_respawn_time = group[0][0]
+            first_boss_name = group[0][1]
+
+            # 判斷是否該提醒（前10分鐘內，且尚未提醒過）
+            if 0 <= int((first_respawn_time - now).total_seconds() // 60) <= 10:
+                if first_boss_name not in reminded_groups:
+                    # 建立表格
+                    header = f"{'王名稱':<12} {'重生時間':<6}"
+                    lines = [header, "―" * len(header)]
+                    for respawn_time, name in group:
+                        line = f"{name:<12} {respawn_time.strftime('%H:%M'):<6}"
+                        lines.append(line)
+
+                    message = "```" + "\n".join(lines) + "```"
+
+                    # Discord 頻道 ID，請改成你的頻道
+                    channel_id = 123456789012345678
+                    channel = bot.get_channel(channel_id)
+                    if channel:
+                        await channel.send(f"⏰ 世界王即將重生！\n{message}")
+
+                    # 標記整個群組已提醒
+                    for _, name in group:
+                        reminded_groups.add(name)
+
+        await asyncio.sleep(60)
+
 # ===== 啟動 =====
 @bot.event
 async def on_ready():
@@ -189,7 +258,10 @@ async def on_ready():
     bot.add_view(RoleSelectView())
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
+bot.loop.create_task(world_boss_reminder())
+
 bot.run(TOKEN)
+
 
 
 
