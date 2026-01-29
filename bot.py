@@ -182,72 +182,95 @@ async def world_boss_list(ctx: discord.ApplicationContext):
 
     await ctx.respond(embed=embed)
 
-# ===== 提醒王重生 =====
+# ===== 提醒王重生（修正版）=====
 async def world_boss_reminder():
     tz = pytz.timezone("Asia/Taipei")
     await bot.wait_until_ready()
 
-    reminded_groups = set()  # 記錄已提醒過的群組（依第一隻王）
+    reminded_groups = set()  # 記錄已提醒過的「群組時間戳」
 
     while not bot.is_closed():
         now = datetime.datetime.now(tz)
         rows = sheet.get_all_records()
 
-        # 先收集所有即將重生的王
         upcoming = []
+
+        # 1️⃣ 收集所有王的重生時間
         for row in rows:
             if not row.get("死亡時間"):
                 continue
-            death_time = tz.localize(
-                datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
-            )
-            respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
-            upcoming.append((respawn_time, row["王名稱"]))
+
+            try:
+                death_time = tz.localize(
+                    datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+                )
+                respawn_time = death_time + datetime.timedelta(
+                    hours=int(row["重生小時"])
+                )
+                upcoming.append({
+                    "name": row["王名稱"],
+                    "respawn": respawn_time
+                })
+            except Exception:
+                continue  # 有格式錯誤就跳過
 
         if not upcoming:
             await asyncio.sleep(60)
             continue
 
-        # 依重生時間排序
-        upcoming.sort(key=lambda x: x[0])
+        # 2️⃣ 依重生時間排序
+        upcoming.sort(key=lambda x: x["respawn"])
 
-        # 分組：同時期王 30 分鐘內的視為一組
+        # 3️⃣ 分組（30 分鐘內視為同時期）
         groups = []
         current_group = [upcoming[0]]
-        for r in upcoming[1:]:
-            if (r[0] - current_group[0][0]).total_seconds() <= 30 * 60:  # 30分鐘內
-                current_group.append(r)
+
+        for boss in upcoming[1:]:
+            if (boss["respawn"] - current_group[0]["respawn"]).total_seconds() <= 30 * 60:
+                current_group.append(boss)
             else:
                 groups.append(current_group)
-                current_group = [r]
+                current_group = [boss]
+
         groups.append(current_group)
 
-        # 處理每個群組，只在第一隻王前10分鐘提醒一次
+        # 4️⃣ 每組只在「第一隻王重生前 10 分鐘」提醒一次
         for group in groups:
-            first_respawn_time = group[0][0]
-            first_boss_name = group[0][1]
+            first_respawn = group[0]["respawn"]
+            remind_time = first_respawn - datetime.timedelta(minutes=10)
 
-            # 判斷是否該提醒（前10分鐘內，且尚未提醒過）
-            if 0 <= int((first_respawn_time - now).total_seconds() // 60) <= 10:
-                if first_boss_name not in reminded_groups:
-                    # 建立表格
-                    header = f"{'王名稱':<12} {'重生時間':<6}"
-                    lines = [header, "―" * len(header)]
-                    for respawn_time, name in group:
-                        line = f"{name:<12} {respawn_time.strftime('%H:%M'):<6}"
-                        lines.append(line)
+            group_key = first_respawn.strftime("%Y%m%d%H%M")  # 群組唯一 key
 
-                    message = "```" + "\n".join(lines) + "```"
+            # ✅ 正確的提醒時間判斷（關鍵）
+            if remind_time <= now < first_respawn:
+                if group_key in reminded_groups:
+                    continue
 
-                    # Discord 頻道 ID，請改成你的頻道
-                    channel_id = 123456789012345678
-                    channel = bot.get_channel(channel_id)
-                    if channel:
-                        await channel.send(f"⏰ 世界王即將重生！\n{message}")
+                # 5️⃣ 建立對齊表格（王名長短不會亂）
+                max_name_len = max(len(b["name"]) for b in group)
+                header = f"{'王名稱':<{max_name_len}}  重生時間"
+                lines = [header, "─" * (len(header) + 2)]
 
-                    # 標記整個群組已提醒
-                    for _, name in group:
-                        reminded_groups.add(name)
+                for b in group:
+                    lines.append(
+                        f"{b['name']:<{max_name_len}}  {b['respawn'].strftime('%H:%M')}"
+                    )
+
+                table = "```" + "\n".join(lines) + "```"
+
+                embed = discord.Embed(
+                    title="⏰ 世界王即將重生（同時期）",
+                    description=table,
+                    color=0xE67E22
+                )
+
+                channel_id = 1463863523447668787  # 你的提醒頻道
+                channel = bot.get_channel(channel_id)
+                if channel:
+                    await channel.send(embed=embed)
+
+                # 6️⃣ 標記此群組已提醒
+                reminded_groups.add(group_key)
 
         await asyncio.sleep(60)
 
@@ -291,6 +314,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
