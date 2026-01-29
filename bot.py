@@ -150,7 +150,7 @@ async def world_boss_list(ctx: discord.ApplicationContext):
     )
 
     # 標題欄位
-    header = f"{'王名稱':<12} {'重生時間':<6} {'剩餘時間(分鐘)':<12}"
+    header = f"{'王名稱':<10} {'重生時間':<8} {'剩餘時間(分鐘)':<8}"
     table_lines = [header, "―" * len(header)]  # 分隔線
 
     # 循環累加每隻王資料
@@ -186,6 +186,7 @@ async def on_ready():
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
 bot.run(TOKEN)
+
 
 
 
