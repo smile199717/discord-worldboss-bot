@@ -6,6 +6,9 @@ import datetime
 import asyncio
 import pytz
 from discord.ui import View, Button
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # ===== Token =====
 TOKEN = os.getenv("DISCORD_TOKEN")  # 從 Render 環境變數讀
@@ -13,6 +16,22 @@ if not TOKEN:
     raise RuntimeError("❌ DISCORD_TOKEN 沒有設定到環境變數")
 
 GUILD_ID = 1428004541340717058
+
+# ===== Google Sheets =====
+tz = pytz.timezone("Asia/Taipei")  # 台灣時區
+
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+
+# 從 Render 環境變數讀 JSON
+creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+gc = gspread.authorize(creds)
+
+# Sheet ID 也從環境變數讀
+sheet = gc.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
 # ===== Bot =====
 intents = discord.Intents.default()
@@ -161,5 +180,6 @@ async def on_ready():
     print(f"✅ 已登入 {bot.user}")
 
 bot.run(TOKEN)
+
 
 
