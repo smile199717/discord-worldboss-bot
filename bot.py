@@ -178,8 +178,11 @@ async def world_boss_list(ctx: discord.ApplicationContext):
 async def on_ready():
     bot.add_view(RoleSelectView())
     print(f"✅ 已登入 {bot.user}")
+await bot.tree.sync()
+    print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
 bot.run(TOKEN)
+
 
 
 
