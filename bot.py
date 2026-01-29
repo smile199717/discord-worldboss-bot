@@ -283,21 +283,6 @@ async def on_ready():
 
 bot.loop.create_task(world_boss_reminder())
 
-# ===== 假的 HTTP Server =====
-from flask import Flask
-import threading
-
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Bot is running"
-
-def run_web():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-threading.Thread(target=run_web).start()
-
 # ===== Render Keep-Alive Server =====
 from flask import Flask
 from threading import Thread
@@ -314,6 +299,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
