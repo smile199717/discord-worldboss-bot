@@ -150,7 +150,7 @@ async def world_boss_list(ctx: discord.ApplicationContext):
     )
 
     # 標題欄位
-    header = f"{'王名稱':<12} {'重生時間':<6} {'剩餘時間(分鐘)':<12}"
+    header = f"{'王名稱':<10} {'重生時間':<8} {'剩餘時間(分鐘)':<8}"
     table_lines = [header, "―" * len(header)]  # 分隔線
 
     for row in rows:
@@ -165,8 +165,9 @@ async def world_boss_list(ctx: discord.ApplicationContext):
         if remaining_minutes < 0:
             remaining_minutes = 0
 
-        line = f"{row['王名稱']:<12} {respawn_time.strftime('%H:%M'):<6} {remaining_minutes:<12}"
-        table_lines.append(line)
+        # 使用 ljust 保證對齊
+    line = f"{row['王名稱'][:10].ljust(10)} {respawn_time.strftime('%H:%M').ljust(8)} {str(remaining_minutes).ljust(8)}"
+    table_lines.append(line)
 
     # 將整個表格用 code block 包起來
     embed.description = "```" + "\n".join(table_lines) + "```"
@@ -182,6 +183,7 @@ await bot.tree.sync()
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
 bot.run(TOKEN)
+
 
 
 
