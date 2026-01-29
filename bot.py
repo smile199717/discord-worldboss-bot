@@ -143,21 +143,29 @@ async def world_boss_list(ctx: discord.ApplicationContext):
         await ctx.respond("目前沒有已登記的世界王資料")
         return
 
+    # 過濾出有死亡時間的資料，避免重複或空白
+    filtered_rows = [row for row in rows if row.get("死亡時間")]
+
+    if not filtered_rows:
+        await ctx.respond("目前沒有已登記的世界王資料")
+        return
+
+    # 計算每一欄最大長度，方便格式化
+    name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
+    respawn_width = len("重生時間") + 2
+    remaining_width = len("剩餘時間(分鐘)") + 2
+
     # 建立 Embed
     embed = discord.Embed(
         title="📜 世界王重生表",
         color=0x3498DB
     )
 
-    # 標題欄位
-    header = f"{'王名稱':<10} {'重生時間':<8} {'剩餘時間(分鐘)':<8}"
+    # 標題列
+    header = f"{'王名稱':<{name_width}} {'重生時間':<{respawn_width}} {'剩餘時間(分鐘)':<{remaining_width}}"
     table_lines = [header, "―" * len(header)]  # 分隔線
 
-    # 循環累加每隻王資料
-    for row in rows:
-        if not row.get("死亡時間"):
-            continue  # 沒死亡時間就跳過
-
+    for row in filtered_rows:
         death_time = tz.localize(
             datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
         )
@@ -166,14 +174,10 @@ async def world_boss_list(ctx: discord.ApplicationContext):
         if remaining_minutes < 0:
             remaining_minutes = 0
 
-        line = f"{row['王名稱']:<12} {respawn_time.strftime('%H:%M'):<6} {remaining_minutes:<12}"
+        line = f"{row['王名稱']:<{name_width}} {respawn_time.strftime('%H:%M'):<{respawn_width}} {remaining_minutes:<{remaining_width}}"
         table_lines.append(line)
 
-     # 使用 ljust 保證對齊
-    line = f"{row['王名稱'][:10].ljust(10)} {respawn_time.strftime('%H:%M').ljust(8)} {str(remaining_minutes).ljust(8)}"
-    table_lines.append(line)
-    
-    # 循環結束後再把整個表格放入 description
+    # 把整個表格放入 description
     embed.description = "```" + "\n".join(table_lines) + "```"
 
     await ctx.respond(embed=embed)
@@ -186,6 +190,7 @@ async def on_ready():
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
 bot.run(TOKEN)
+
 
 
 
