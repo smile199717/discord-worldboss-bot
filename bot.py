@@ -169,6 +169,10 @@ async def world_boss_list(ctx: discord.ApplicationContext):
         line = f"{row['王名稱']:<12} {respawn_time.strftime('%H:%M'):<6} {remaining_minutes:<12}"
         table_lines.append(line)
 
+     # 使用 ljust 保證對齊
+    line = f"{row['王名稱'][:10].ljust(10)} {respawn_time.strftime('%H:%M').ljust(8)} {str(remaining_minutes).ljust(8)}"
+    table_lines.append(line)
+    
     # 循環結束後再把整個表格放入 description
     embed.description = "```" + "\n".join(table_lines) + "```"
 
@@ -182,6 +186,7 @@ async def on_ready():
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
 bot.run(TOKEN)
+
 
 
 
