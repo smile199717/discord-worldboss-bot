@@ -275,7 +275,23 @@ def run_web():
 
 threading.Thread(target=run_web).start()
 
+# ===== Render Keep-Alive Server =====
+from flask import Flask
+from threading import Thread
+
+app = Flask("render-keep-alive")
+
+@app.route("/")
+def home():
+    return "Bot is running"
+
+def run_web():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
+Thread(target=run_web).start()
+
 bot.run(TOKEN)
+
 
 
 
