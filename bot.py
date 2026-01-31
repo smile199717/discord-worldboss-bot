@@ -134,10 +134,12 @@ async def send_role_panel(ctx):
     guild_ids=[GUILD_ID]
 )
 async def world_boss_list(ctx: discord.ApplicationContext):
+    await ctx.defer()  # ⭐⭐⭐ 新增這一行（最重要）
+    
     tz = pytz.timezone("Asia/Taipei")
     now = datetime.datetime.now(tz)
 
-    rows = sheet.get_all_records()
+    rows = await asyncio.to_thread(sheet.get_all_records)
 
     if not rows:
         await ctx.respond("目前沒有已登記的世界王資料")
@@ -199,7 +201,7 @@ async def world_boss_reminder():
                 if v > now
             }
 
-            rows = sheet.get_all_records()
+            rows = await asyncio.to_thread(sheet.get_all_records)
             upcoming = []
 
             # 1️⃣ 收集所有王的重生時間
@@ -297,7 +299,9 @@ async def on_ready():
     bot.add_view(RoleSelectView())
     print("✅ 身分組按鈕 View 已註冊，指令同步完成")
 
-bot.loop.create_task(world_boss_reminder())
+    if not hasattr(bot, "world_boss_task"):
+        bot.world_boss_task = bot.loop.create_task(world_boss_reminder())
+        print("✅ 世界王提醒背景任務已啟動")
 
 # ===== Render Keep-Alive Server =====
 from flask import Flask
@@ -315,6 +319,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
