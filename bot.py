@@ -187,10 +187,16 @@ async def world_boss_reminder():
     tz = pytz.timezone("Asia/Taipei")
     await bot.wait_until_ready()
 
-    reminded_groups = set()  # 記錄已提醒過的「群組時間戳」
+    reminded_groups = {}  # group_key -> remind_time
 
     while not bot.is_closed():
         now = datetime.datetime.now(tz)
+
+         reminded_groups = {
+            k: v for k, v in reminded_groups.items()
+            if v > now
+        }
+        
         rows = sheet.get_all_records()
 
         upcoming = []
@@ -270,7 +276,7 @@ async def world_boss_reminder():
                     await channel.send(embed=embed)
 
                 # 6️⃣ 標記此群組已提醒
-                reminded_groups.add(group_key)
+               reminded_groups[group_key] = first_respawn
 
         await asyncio.sleep(60)
 
@@ -299,6 +305,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
