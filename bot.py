@@ -134,60 +134,63 @@ async def send_role_panel(ctx):
     guild_ids=[GUILD_ID]
 )
 async def world_boss_list(ctx: discord.ApplicationContext):
-    await ctx.defer()  # ⭐ 告訴 Discord：我有收到，請等我
+    await ctx.defer()  # 告訴 Discord：我有收到
 
-    tz = pytz.timezone("Asia/Taipei")
-    now = datetime.datetime.now(tz)
+    try:
+        tz = pytz.timezone("Asia/Taipei")
+        now = datetime.datetime.now(tz)
 
-    # ⭐ 丟到 thread，避免卡 event loop
-    rows = await asyncio.to_thread(sheet.get_all_records)
+        rows = await asyncio.to_thread(sheet.get_all_records)
 
-    if not rows:
-        await ctx.followup.send("目前沒有已登記的世界王資料")
-        return
+        if not rows:
+            await ctx.followup.send("目前沒有已登記的世界王資料")
+            return
 
-    filtered_rows = [row for row in rows if row.get("死亡時間")]
+        filtered_rows = [row for row in rows if row.get("死亡時間")]
 
-    if not filtered_rows:
-        await ctx.followup.send("目前沒有已登記的世界王資料")
-        return
+        if not filtered_rows:
+            await ctx.followup.send("目前沒有已登記的世界王資料")
+            return
 
-    name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
-    respawn_width = len("重生時間") + 2
-    remaining_width = len("剩餘時間(分鐘)") + 2
+        name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
+        respawn_width = len("重生時間") + 2
+        remaining_width = len("剩餘時間(分鐘)") + 2
 
-    embed = discord.Embed(
-        title="📜 世界王重生表",
-        color=0x3498DB
-    )
-
-    header = f"{'王名稱':<{name_width}} {'重生時間':<{respawn_width}} {'剩餘時間(分鐘)':<{remaining_width}}"
-    table_lines = [header, "―" * len(header)]
-
-    for row in filtered_rows:
-        death_time = tz.localize(
-            datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+        embed = discord.Embed(
+            title="📜 世界王重生表",
+            color=0x3498DB
         )
-        respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
-        remaining_minutes = int((respawn_time - now).total_seconds() // 60)
-        if remaining_minutes < 0:
-            remaining_minutes = 0
 
-        line = (
-            f"{row['王名稱']:<{name_width}} "
-            f"{respawn_time.strftime('%H:%M'):<{respawn_width}} "
-            f"{remaining_minutes:<{remaining_width}}"
+        header = (
+            f"{'王名稱':<{name_width}} "
+            f"{'重生時間':<{respawn_width}} "
+            f"{'剩餘時間(分鐘)':<{remaining_width}}"
         )
-        table_lines.append(line)
+        table_lines = [header, "―" * len(header)]
 
-    embed.description = "```" + "\n".join(table_lines) + "```"
+        for row in filtered_rows:
+            death_time = tz.localize(
+                datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+            )
+            respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
+            remaining_minutes = int((respawn_time - now).total_seconds() // 60)
+            if remaining_minutes < 0:
+                remaining_minutes = 0
 
-    # ✅ 用 followup.send 結束思考狀態
-    await ctx.followup.send(embed=embed)
+            line = (
+                f"{row['王名稱']:<{name_width}} "
+                f"{respawn_time.strftime('%H:%M'):<{respawn_width}} "
+                f"{remaining_minutes:<{remaining_width}}"
+            )
+            table_lines.append(line)
 
-except Exception as e:
-        # 🔥 就算爆炸，也一定回覆，避免卡轉圈
-        await ctx.followup.send(f"❌ 產生錯誤：{e}")
+        embed.description = "```" + "\n".join(table_lines) + "```"
+
+        await ctx.followup.send(embed=embed)
+
+    except Exception as e:
+        # ❗這個 except 現在一定有對應的 try
+        await ctx.followup.send(f"❌ 發生錯誤：{e}")
 
 # ===== 提醒王重生（最終穩定版，可直接覆蓋）=====
 async def world_boss_reminder():
@@ -324,6 +327,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
