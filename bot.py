@@ -134,8 +134,6 @@ async def send_role_panel(ctx):
     guild_ids=[GUILD_ID]
 )
 async def world_boss_list(ctx: discord.ApplicationContext):
-    await ctx.defer()  # 告訴 Discord：我有收到
-
     try:
         tz = pytz.timezone("Asia/Taipei")
         now = datetime.datetime.now(tz)
@@ -143,13 +141,13 @@ async def world_boss_list(ctx: discord.ApplicationContext):
         rows = await asyncio.to_thread(sheet.get_all_records)
 
         if not rows:
-            await ctx.followup.send("目前沒有已登記的世界王資料")
+            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
             return
 
         filtered_rows = [row for row in rows if row.get("死亡時間")]
 
         if not filtered_rows:
-            await ctx.followup.send("目前沒有已登記的世界王資料")
+            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
             return
 
         name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
@@ -186,11 +184,12 @@ async def world_boss_list(ctx: discord.ApplicationContext):
 
         embed.description = "```" + "\n".join(table_lines) + "```"
 
-        await ctx.followup.send(embed=embed)
+        await ctx.respond(embed=embed)
 
     except Exception as e:
-        # ❗這個 except 現在一定有對應的 try
-        await ctx.followup.send(f"❌ 發生錯誤：{e}")
+        # 最後保險：就算爆炸也一定回
+        if not ctx.response.is_done():
+            await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
 
 # ===== 提醒王重生（最終穩定版，可直接覆蓋）=====
 async def world_boss_reminder():
@@ -327,6 +326,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
