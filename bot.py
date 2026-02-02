@@ -127,6 +127,7 @@ async def send_role_panel(ctx):
     )
     await ctx.respond(embed=embed, view=RoleSelectView())
 
+# ===== /王重生表 =====
 @bot.slash_command(
     name="王重生表",
     description="列出所有世界王的重生時間",
@@ -183,6 +184,10 @@ async def world_boss_list(ctx: discord.ApplicationContext):
 
     # ✅ 用 followup.send 結束思考狀態
     await ctx.followup.send(embed=embed)
+
+except Exception as e:
+        # 🔥 就算爆炸，也一定回覆，避免卡轉圈
+        await ctx.followup.send(f"❌ 產生錯誤：{e}")
 
 # ===== 提醒王重生（最終穩定版，可直接覆蓋）=====
 async def world_boss_reminder():
@@ -319,6 +324,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
