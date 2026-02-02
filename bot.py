@@ -46,19 +46,29 @@ groups = {"A": [], "B": [], "C": []}
 
 # ===== 登記 =====
 @bot.slash_command(name="登記", guild_ids=[GUILD_ID])
-async def register(ctx, group: str, name: str):
-    if group not in groups:
-        await ctx.respond("❌ 群組不存在", ephemeral=True)
-        return
-    if name not in groups[group]:
-        groups[group].append(name)
-    await ctx.respond(f"✅ {name} 已加入 {group} 組", ephemeral=True)
-
+async def register(ctx, name: str):
+    view = GroupSelectView(
+        action="register",
+        user=ctx.author,
+        name=name
+    )
+    await ctx.respond(
+        "請選擇要加入的臨時群組：",
+        view=view,
+        ephemeral=True
+    )
 # ===== 清除 =====
 @bot.slash_command(name="登記清除", guild_ids=[GUILD_ID])
-async def clear_group(ctx, group: str):
-    groups[group].clear()
-    await ctx.respond(f"✅ {group} 組已清空", ephemeral=True)
+async def clear_group(ctx):
+    view = GroupSelectView(
+        action="clear",
+        user=ctx.author
+    )
+    await ctx.respond(
+        "請選擇要清空的臨時群組：",
+        view=view,
+        ephemeral=True
+    )
 
 # ===== 抽獎 =====
 @bot.slash_command(name="抽獎", guild_ids=[GUILD_ID])
@@ -81,10 +91,15 @@ async def draw(ctx, group: str, prizes: str):
 
 # ===== 名單 =====
 @bot.slash_command(name="登記名單", guild_ids=[GUILD_ID])
-async def show_group(ctx, group: str):
-    members = groups[group]
+async def show_group(ctx):
+    view = GroupSelectView(
+        action="list",
+        user=ctx.author
+    )
     await ctx.respond(
-        f"**{group} 組名單：** {', '.join(members) if members else '沒有人'}"
+        "請選擇要查看的臨時群組：",
+        view=view,
+        ephemeral=True
     )
 
 # ===== 身分組 View =====
@@ -115,6 +130,65 @@ class RoleSelectView(View):
         if role:
             await interaction.user.add_roles(role)
             await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
+
+# ===== 臨時群組選單 View =====
+class GroupSelectView(View):
+    def __init__(self, action: str, user: discord.User, name: str = None):
+        super().__init__(timeout=60)
+        self.action = action
+        self.user = user
+        self.name = name
+
+        self.add_item(GroupSelect())
+
+class GroupSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="A 組", value="A"),
+            discord.SelectOption(label="B 組", value="B"),
+            discord.SelectOption(label="C 組", value="C"),
+        ]
+        super().__init__(
+            placeholder="請選擇臨時群組",
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view: GroupSelectView = self.view
+
+        # 只允許指令發起者操作
+        if interaction.user.id != view.user.id:
+            await interaction.response.send_message(
+                "❌ 這不是你的操作選單",
+                ephemeral=True
+            )
+            return
+
+        group = self.values[0]
+
+        # ===== 依 action 分流 =====
+        if view.action == "register":
+            if view.name not in groups[group]:
+                groups[group].append(view.name)
+            await interaction.response.send_message(
+                f"✅ {view.name} 已加入 {group} 組",
+                ephemeral=True
+            )
+
+        elif view.action == "list":
+            members = groups[group]
+            msg = f"**{group} 組名單：**\n"
+            msg += ", ".join(members) if members else "沒有人"
+            await interaction.response.send_message(msg, ephemeral=True)
+
+        elif view.action == "clear":
+            groups[group].clear()
+            await interaction.response.send_message(
+                f"🗑️ {group} 組已清空",
+                ephemeral=True
+            )
+
+        self.view.stop()
 
 # ===== 發送身分組面板（管理員）=====
 @bot.slash_command(name="發送身分組", guild_ids=[GUILD_ID])
@@ -326,6 +400,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
