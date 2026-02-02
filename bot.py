@@ -159,6 +159,77 @@ async def send_role_panel(ctx):
     )
     await ctx.respond(embed=embed, view=RoleSelectView())
 
+# ===== /王重生表 =====
+@bot.slash_command(
+    name="王重生表",
+    description="列出所有世界王的重生時間",
+    guild_ids=[GUILD_ID]
+)
+async def world_boss_list(ctx: discord.ApplicationContext):
+    try:
+        tz = pytz.timezone("Asia/Taipei")
+        now = datetime.datetime.now(tz)
+
+        # ⚠️ 用 to_thread 避免卡住 interaction
+        rows = await asyncio.to_thread(sheet.get_all_records)
+
+        if not rows:
+            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
+            return
+
+        # 只保留有死亡時間的
+        filtered_rows = [row for row in rows if row.get("死亡時間")]
+
+        if not filtered_rows:
+            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
+            return
+
+        # 計算欄寬
+        name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
+        respawn_width = len("重生時間") + 2
+        remaining_width = len("剩餘時間(分鐘)") + 2
+
+        embed = discord.Embed(
+            title="📜 世界王重生表",
+            color=0x3498DB
+        )
+
+        header = (
+            f"{'王名稱':<{name_width}} "
+            f"{'重生時間':<{respawn_width}} "
+            f"{'剩餘時間(分鐘)':<{remaining_width}}"
+        )
+        table_lines = [header, "―" * len(header)]
+
+        for row in filtered_rows:
+            death_time = tz.localize(
+                datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+            )
+            respawn_time = death_time + datetime.timedelta(
+                hours=int(row["重生小時"])
+            )
+
+            remaining_minutes = int(
+                (respawn_time - now).total_seconds() // 60
+            )
+            if remaining_minutes < 0:
+                remaining_minutes = 0
+
+            line = (
+                f"{row['王名稱']:<{name_width}} "
+                f"{respawn_time.strftime('%H:%M'):<{respawn_width}} "
+                f"{remaining_minutes:<{remaining_width}}"
+            )
+            table_lines.append(line)
+
+        embed.description = "```" + "\n".join(table_lines) + "```"
+        await ctx.respond(embed=embed)
+
+    except Exception as e:
+        # 保證一定會回應，不會嘴嘴轉圈
+        if not ctx.response.is_done():
+            await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
+
 # ===== 提醒王重生（修正變數覆蓋版，可直接覆蓋）=====
 async def world_boss_reminder():
     tz = pytz.timezone("Asia/Taipei")
@@ -301,6 +372,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
