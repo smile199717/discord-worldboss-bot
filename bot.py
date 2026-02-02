@@ -1,5 +1,6 @@
 # bot.py
 import discord
+from discord import Option
 import random
 import os
 import datetime
@@ -45,40 +46,55 @@ tz = pytz.timezone("Asia/Taipei")
 groups = {"A": [], "B": [], "C": []}
 
 # ===== 登記 =====
-@bot.slash_command(name="登記", guild_ids=[GUILD_ID])
-async def register(ctx, name: str):
-    view = GroupSelectView(
-        action="register",
-        user=ctx.author,
-        name=name
-    )
+@bot.slash_command(
+    name="登記",
+    description="登記加入臨時群組",
+    guild_ids=[GUILD_ID]
+)
+async def register(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
+    name: Option(str, "輸入你的名字")
+):
+    if name not in groups[group]:
+        groups[group].append(name)
+
     await ctx.respond(
-        "請選擇要加入的臨時群組：",
-        view=view,
+        f"✅ {name} 已加入 {group} 組",
         ephemeral=True
     )
+
 # ===== 清除 =====
-@bot.slash_command(name="登記清除", guild_ids=[GUILD_ID])
-async def clear_group(ctx):
-    view = GroupSelectView(
-        action="clear",
-        user=ctx.author
-    )
-    await ctx.respond(
-        "請選擇要清空的臨時群組：",
-        view=view,
-        ephemeral=True
-    )
+@bot.slash_command(
+    name="登記清除",
+    description="清空臨時群組",
+    guild_ids=[GUILD_ID]
+)
+async def clear_group(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"])
+):
+    groups[group].clear()
+    await ctx.respond(f"🗑️ {group} 組已清空", ephemeral=True)
 
 # ===== 抽獎 =====
-@bot.slash_command(name="抽獎", guild_ids=[GUILD_ID])
-async def draw(ctx, group: str, prizes: str):
+@bot.slash_command(
+    name="抽獎",
+    description="從臨時群組中抽獎",
+    guild_ids=[GUILD_ID]
+)
+async def draw(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
+    prizes: Option(str, "輸入獎品（用 / 分隔）")
+):
     members = groups[group].copy()
+
     if not members:
-        await ctx.respond("⚠️ 沒有人可以抽", ephemeral=True)
+        await ctx.respond("⚠️ 該群組沒有人可以抽", ephemeral=True)
         return
 
-    prize_list = [p.strip() for p in prizes.split("/")]
+    prize_list = [p.strip() for p in prizes.split("/") if p.strip()]
     random.shuffle(members)
 
     results = []
@@ -90,17 +106,18 @@ async def draw(ctx, group: str, prizes: str):
     await ctx.respond("\n".join(results))
 
 # ===== 名單 =====
-@bot.slash_command(name="登記名單", guild_ids=[GUILD_ID])
-async def show_group(ctx):
-    view = GroupSelectView(
-        action="list",
-        user=ctx.author
-    )
-    await ctx.respond(
-        "請選擇要查看的臨時群組：",
-        view=view,
-        ephemeral=True
-    )
+@bot.slash_command(
+    name="登記名單",
+    description="查看臨時群組名單",
+    guild_ids=[GUILD_ID]
+)
+async def show_group(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"])
+):
+    members = groups[group]
+    msg = ", ".join(members) if members else "沒有人"
+    await ctx.respond(f"**{group} 組名單：** {msg}", ephemeral=True)
 
 # ===== 身分組 View =====
 class RoleSelectView(View):
@@ -131,65 +148,6 @@ class RoleSelectView(View):
             await interaction.user.add_roles(role)
             await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
 
-# ===== 臨時群組選單 View =====
-class GroupSelectView(View):
-    def __init__(self, action: str, user: discord.User, name: str = None):
-        super().__init__(timeout=60)
-        self.action = action
-        self.user = user
-        self.name = name
-
-        self.add_item(GroupSelect())
-
-class GroupSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="A 組", value="A"),
-            discord.SelectOption(label="B 組", value="B"),
-            discord.SelectOption(label="C 組", value="C"),
-        ]
-        super().__init__(
-            placeholder="請選擇臨時群組",
-            options=options
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        view: GroupSelectView = self.view
-
-        # 只允許指令發起者操作
-        if interaction.user.id != view.user.id:
-            await interaction.response.send_message(
-                "❌ 這不是你的操作選單",
-                ephemeral=True
-            )
-            return
-
-        group = self.values[0]
-
-        # ===== 依 action 分流 =====
-        if view.action == "register":
-            if view.name not in groups[group]:
-                groups[group].append(view.name)
-            await interaction.response.send_message(
-                f"✅ {view.name} 已加入 {group} 組",
-                ephemeral=True
-            )
-
-        elif view.action == "list":
-            members = groups[group]
-            msg = f"**{group} 組名單：**\n"
-            msg += ", ".join(members) if members else "沒有人"
-            await interaction.response.send_message(msg, ephemeral=True)
-
-        elif view.action == "clear":
-            groups[group].clear()
-            await interaction.response.send_message(
-                f"🗑️ {group} 組已清空",
-                ephemeral=True
-            )
-
-        self.view.stop()
-
 # ===== 發送身分組面板（管理員）=====
 @bot.slash_command(name="發送身分組", guild_ids=[GUILD_ID])
 @discord.default_permissions(administrator=True)
@@ -201,71 +159,7 @@ async def send_role_panel(ctx):
     )
     await ctx.respond(embed=embed, view=RoleSelectView())
 
-# ===== /王重生表 =====
-@bot.slash_command(
-    name="王重生表",
-    description="列出所有世界王的重生時間",
-    guild_ids=[GUILD_ID]
-)
-async def world_boss_list(ctx: discord.ApplicationContext):
-    try:
-        tz = pytz.timezone("Asia/Taipei")
-        now = datetime.datetime.now(tz)
-
-        rows = await asyncio.to_thread(sheet.get_all_records)
-
-        if not rows:
-            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
-            return
-
-        filtered_rows = [row for row in rows if row.get("死亡時間")]
-
-        if not filtered_rows:
-            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
-            return
-
-        name_width = max(len(row["王名稱"]) for row in filtered_rows) + 2
-        respawn_width = len("重生時間") + 2
-        remaining_width = len("剩餘時間(分鐘)") + 2
-
-        embed = discord.Embed(
-            title="📜 世界王重生表",
-            color=0x3498DB
-        )
-
-        header = (
-            f"{'王名稱':<{name_width}} "
-            f"{'重生時間':<{respawn_width}} "
-            f"{'剩餘時間(分鐘)':<{remaining_width}}"
-        )
-        table_lines = [header, "―" * len(header)]
-
-        for row in filtered_rows:
-            death_time = tz.localize(
-                datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
-            )
-            respawn_time = death_time + datetime.timedelta(hours=int(row["重生小時"]))
-            remaining_minutes = int((respawn_time - now).total_seconds() // 60)
-            if remaining_minutes < 0:
-                remaining_minutes = 0
-
-            line = (
-                f"{row['王名稱']:<{name_width}} "
-                f"{respawn_time.strftime('%H:%M'):<{respawn_width}} "
-                f"{remaining_minutes:<{remaining_width}}"
-            )
-            table_lines.append(line)
-
-        embed.description = "```" + "\n".join(table_lines) + "```"
-
-        await ctx.respond(embed=embed)
-
-    except Exception as e:
-        # 最後保險：就算爆炸也一定回
-        if not ctx.response.is_done():
-            await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
-
-# ===== 提醒王重生（最終穩定版，可直接覆蓋）=====
+# ===== 提醒王重生（修正變數覆蓋版，可直接覆蓋）=====
 async def world_boss_reminder():
     tz = pytz.timezone("Asia/Taipei")
     await bot.wait_until_ready()
@@ -292,7 +186,9 @@ async def world_boss_reminder():
 
                 try:
                     death_time = tz.localize(
-                        datetime.datetime.strptime(row["死亡時間"], "%Y/%m/%d %H:%M")
+                        datetime.datetime.strptime(
+                            row["死亡時間"], "%Y/%m/%d %H:%M"
+                        )
                     )
                     respawn_time = death_time + datetime.timedelta(
                         hours=int(row["重生小時"])
@@ -314,20 +210,22 @@ async def world_boss_reminder():
             upcoming.sort(key=lambda x: x["respawn"])
 
             # 3️⃣ 分組（30 分鐘內視為同時期）
-            groups = []
+            boss_groups = []          # ✅ 改名，避免覆蓋臨時群組
             current_group = [upcoming[0]]
 
             for boss in upcoming[1:]:
-                if (boss["respawn"] - current_group[0]["respawn"]).total_seconds() <= 30 * 60:
+                if (
+                    boss["respawn"] - current_group[0]["respawn"]
+                ).total_seconds() <= 30 * 60:
                     current_group.append(boss)
                 else:
-                    groups.append(current_group)
+                    boss_groups.append(current_group)
                     current_group = [boss]
 
-            groups.append(current_group)
+            boss_groups.append(current_group)
 
             # 4️⃣ 每組只在「第一隻王重生前 10 分鐘」提醒一次
-            for group in groups:
+            for group in boss_groups:
                 first_respawn = group[0]["respawn"]
                 remind_time = first_respawn - datetime.timedelta(minutes=10)
 
@@ -355,7 +253,7 @@ async def world_boss_reminder():
                         color=0xE67E22
                     )
 
-                    channel_id = 1463863523447668787  # 你的提醒頻道
+                    channel_id = 1463863523447668787  # 提醒頻道
                     channel = bot.get_channel(channel_id)
                     if channel:
                         await channel.send(embed=embed)
@@ -363,13 +261,16 @@ async def world_boss_reminder():
                     # 🔑 標記此群組已提醒
                     reminded_groups[group_key] = first_respawn
 
-            # 🔍 Debug（確認 loop 活著，可留一天再刪）
-            print("【WorldBoss Reminder OK】", now, "已提醒群組數:", len(reminded_groups))
+            print(
+                "【WorldBoss Reminder OK】",
+                now,
+                "已提醒群組數:",
+                len(reminded_groups)
+            )
 
             await asyncio.sleep(60)
 
         except Exception as e:
-            # 🚑 保險：任何錯誤都不會殺死整個 loop
             print("🔥 world_boss_reminder 發生錯誤:", e)
             await asyncio.sleep(60)
 
@@ -400,6 +301,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
