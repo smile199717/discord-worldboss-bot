@@ -31,10 +31,19 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
-# ===== Bot =====
+# ===== Bot（正確 pycord 寫法，必須整段替換）=====
 intents = discord.Intents.default()
 intents.members = True
-bot = discord.Bot(intents=intents)
+
+class MyBot(discord.Bot):
+    async def setup_hook(self):
+        # 這裡一定會執行，而且只會執行一次
+        print("🟢 setup_hook called, starting world_boss_reminder")
+
+        # 啟動世界王提醒背景任務
+        self.world_boss_task = asyncio.create_task(world_boss_reminder())
+
+bot = MyBot(intents=intents)
 
 # ===== 臨時群組 =====
 groups = {"A": [], "B": [], "C": []}
@@ -330,16 +339,6 @@ async def world_boss_reminder():
             print("🔥 world_boss_reminder error:", e)
             await asyncio.sleep(10)
 
-# =====================================================
-# 啟動（正確穩定版）
-# =====================================================
-@bot.event
-async def setup_hook():
-    # 這裡一定會跑，而且只跑一次
-    print("🟢 setup_hook called, starting world_boss_reminder")
-
-    bot.world_boss_task = asyncio.create_task(world_boss_reminder())
-
 # ===== Render keep-alive =====
 from flask import Flask
 from threading import Thread
@@ -358,6 +357,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
