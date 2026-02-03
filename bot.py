@@ -31,20 +31,6 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
-# ===== Bot（正確 pycord 寫法，必須整段替換）=====
-intents = discord.Intents.default()
-intents.members = True
-
-class MyBot(discord.Bot):
-    async def setup_hook(self):
-        # 這裡一定會執行，而且只會執行一次
-        print("🟢 setup_hook called, starting world_boss_reminder")
-
-        # 啟動世界王提醒背景任務
-        self.world_boss_task = asyncio.create_task(world_boss_reminder())
-
-bot = MyBot(intents=intents)
-
 # ===== 臨時群組 =====
 groups = {"A": [], "B": [], "C": []}
 
@@ -356,7 +342,28 @@ Thread(
     )
 ).start()
 
+# ===== Bot（最終確認版）=====
+intents = discord.Intents.default()
+intents.members = True
+
+class MyBot(discord.Bot):
+    async def setup_hook(self):
+        print("🟢 setup_hook called")
+        asyncio.create_task(world_boss_reminder())
+
+    async def on_connect(self):
+        print("🔌 Discord gateway connected")
+
+    async def on_ready(self):
+        print(f"✅ Logged in as {self.user} (ID: {self.user.id})")
+
+bot = MyBot(intents=intents)
+
+print("🚀 Starting Discord bot...")
+
+
 bot.run(TOKEN)
+
 
 
 
