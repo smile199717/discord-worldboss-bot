@@ -47,22 +47,37 @@ groups = {"A": [], "B": [], "C": []}
 
 # ===== 登記 =====
 @bot.slash_command(
-    name="登記",
-    description="登記加入臨時群組",
+    name="登記名單",
+    description="查看臨時群組名單（表格）",
     guild_ids=[GUILD_ID]
 )
-async def register(
+async def show_group(
     ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
-    name: Option(str, "輸入你的名字")
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"])
 ):
-    if name not in groups[group]:
-        groups[group].append(name)
+    members = groups[group]
 
-    await ctx.respond(
-        f"✅ {name} 已加入 {group} 組",
-        ephemeral=True
+    embed = discord.Embed(
+        title=f"📋 {group} 組登記名單",
+        color=0x1ABC9C
     )
+
+    if not members:
+        embed.description = "（目前沒有任何登記）"
+        await ctx.respond(embed=embed)
+        return
+
+    # 建立表格
+    max_len = max(len(name) for name in members)
+    header = f"{'編號':<4} {'名稱':<{max_len}}"
+    lines = [header, "─" * (len(header) + 2)]
+
+    for idx, name in enumerate(members, start=1):
+        lines.append(f"{idx:<4} {name:<{max_len}}")
+
+    embed.description = "```" + "\n".join(lines) + "```"
+
+    await ctx.respond(embed=embed)
 
 # ===== 清除 =====
 @bot.slash_command(
@@ -117,7 +132,31 @@ async def show_group(
 ):
     members = groups[group]
     msg = ", ".join(members) if members else "沒有人"
-    await ctx.respond(f"**{group} 組名單：** {msg}", ephemeral=True)
+    await ctx.respond(f"**{group} 組名單：** {msg}", ephemeral=False)
+
+@bot.slash_command(
+    name="刪除",
+    description="刪除自己在臨時群組的登記（請輸入登記時的名字）",
+    guild_ids=[GUILD_ID]
+)
+async def remove_entry(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
+    name: Option(str, "輸入登記時使用的名字")
+):
+    if name not in groups[group]:
+        await ctx.respond(
+            f"⚠️ {name} 不在 {group} 組的登記名單中",
+            ephemeral=True
+        )
+        return
+
+    groups[group].remove(name)
+
+    await ctx.respond(
+        f"🗑️ 已將 **{name}** 從 {group} 組移除",
+        ephemeral=True
+    )
 
 # ===== 身分組 View =====
 class RoleSelectView(View):
@@ -127,7 +166,7 @@ class RoleSelectView(View):
     @discord.ui.button(
         label="最強眾神-軍團成員",
         style=discord.ButtonStyle.primary,
-        emoji="⚔️",
+        emoji="💖",
         custom_id="role_1"
     )
     async def role_1(self, interaction, button):
@@ -139,7 +178,7 @@ class RoleSelectView(View):
     @discord.ui.button(
         label="摯友",
         style=discord.ButtonStyle.secondary,
-        emoji="🤝",
+        emoji="🪐",
         custom_id="role_2"
     )
     async def role_2(self, interaction, button):
@@ -372,6 +411,7 @@ def run_web():
 Thread(target=run_web).start()
 
 bot.run(TOKEN)
+
 
 
 
