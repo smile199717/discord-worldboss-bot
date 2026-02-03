@@ -285,6 +285,13 @@ async def world_boss_reminder():
                 # ✅【關鍵修正】用剩餘時間區間判斷，永不漏
                 delta = first - now
 
+                print(
+    "🧪 CHECK",
+    "now =", now.strftime("%Y/%m/%d %H:%M:%S"),
+    "| first =", first.strftime("%Y/%m/%d %H:%M:%S"),
+    "| delta =", delta,
+)
+                
                 if (
                     key not in reminded
                     and datetime.timedelta(seconds=0) < delta <= datetime.timedelta(minutes=10)
@@ -347,6 +354,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
