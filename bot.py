@@ -331,16 +331,14 @@ async def world_boss_reminder():
             await asyncio.sleep(10)
 
 # =====================================================
-# 啟動
+# 啟動（正確穩定版）
 # =====================================================
 @bot.event
-async def on_ready():
-    print(f"✅ 已登入 {bot.user}")
+async def setup_hook():
+    # 這裡一定會跑，而且只跑一次
+    print("🟢 setup_hook called, starting world_boss_reminder")
 
-    # ✅ 啟動世界王提醒背景任務（關鍵）
-    if not hasattr(bot, "world_boss_task"):
-        bot.world_boss_task = bot.loop.create_task(world_boss_reminder())
-        print("🟢 world_boss_reminder started")
+    bot.world_boss_task = asyncio.create_task(world_boss_reminder())
 
 # ===== Render keep-alive =====
 from flask import Flask
@@ -360,6 +358,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
