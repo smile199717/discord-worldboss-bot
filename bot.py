@@ -241,7 +241,7 @@ async def world_boss_list(ctx: discord.ApplicationContext):
             await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
 
 # =====================================================
-# 世界王提醒（修正版）
+# 世界王提醒（修正版，可直接覆蓋）
 # =====================================================
 async def world_boss_reminder():
     await bot.wait_until_ready()
@@ -288,11 +288,32 @@ async def world_boss_reminder():
             for g in boss_groups:
                 first = g[0]["respawn"]
                 key = first.strftime("%Y%m%d%H%M")
+                remind_time = first - datetime.timedelta(minutes=10)
 
                 # ✅ 修正條件：只要未提醒且現在 >= 提醒時間就提醒
-                remind_time = first - datetime.timedelta(minutes=10)
                 if key not in reminded and now >= remind_time:
-                    max_len = max(len(b["name"]) for b in g)_
+                    max_len = max(len(b["name"]) for b in g)
+                    text_lines = [f"{b['name']:<{max_len}} {b['respawn'].strftime('%H:%M')}" for b in g]
+                    text = "\n".join(text_lines)
+
+                    channel = bot.get_channel(1463863523447668787)
+                    if channel:
+                        await channel.send(
+                            embed=discord.Embed(
+                                title="⏰ 世界王即將重生（同時期）",
+                                description="```" + text + "```",
+                                color=0xE67E22
+                            )
+                        )
+                    # 標記已提醒
+                    reminded[key] = first
+
+            # 🔹 sleep 10 秒更保險，不漏掉提醒
+            await asyncio.sleep(10)
+
+        except Exception as e:
+            print("World boss reminder error:", e)
+            await asyncio.sleep(10)
 
 # =====================================================
 # 啟動
@@ -322,6 +343,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
