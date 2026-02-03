@@ -337,9 +337,10 @@ async def world_boss_reminder():
 async def on_ready():
     print(f"✅ 已登入 {bot.user}")
 
+    # ✅ 啟動世界王提醒背景任務（關鍵）
     if not hasattr(bot, "world_boss_task"):
         bot.world_boss_task = bot.loop.create_task(world_boss_reminder())
-        print("✅ 世界王提醒背景任務已啟動")
+        print("🟢 world_boss_reminder started")
 
 # ===== Render keep-alive =====
 from flask import Flask
@@ -359,6 +360,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
