@@ -74,6 +74,27 @@ async def show_group(
     await ctx.respond(embed=embed)
 
 # =====================================================
+# /登記
+# =====================================================
+@bot.slash_command(
+    name="登記",
+    description="登記加入臨時群組",
+    guild_ids=[GUILD_ID]
+)
+async def register(
+    ctx,
+    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
+    name: Option(str, "輸入登記時的名字")
+):
+    if name not in groups[group]:
+        groups[group].append(name)
+
+    await ctx.respond(
+        f"✅ {name} 已加入 {group} 組",
+        ephemeral=True
+    )
+
+# =====================================================
 # /登記清除
 # =====================================================
 @bot.slash_command(
@@ -157,6 +178,31 @@ class RoleSelectView(View):
         if role:
             await interaction.user.add_roles(role)
             await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
+
+# ===== 彩蛋自動回應 =====
+@bot.event
+async def on_message(message: discord.Message):
+    # 忽略自己的訊息
+    if message.author == bot.user:
+        return
+
+    # 彩蛋列表：key = 觸發字詞, value = 回應
+    easter_eggs = {
+        "將軍的頭盔": "將軍的頭盔",
+        "哈囉": "汪🐕",
+        "你好": "汪🐕",
+        "嗨": "喵🐈",
+        "嘴嘴": "又怎麼了"
+    }
+
+    # 遍歷彩蛋，檢查訊息中是否包含關鍵字
+    for key, reply in easter_eggs.items():
+        if key in message.content:
+            await message.channel.send(reply)
+            break  # 只回覆第一個匹配的彩蛋
+
+    # ⚠️ 最後不要忘記呼叫 process_commands，保留 slash command 功能
+    await bot.process_commands(message)
 
 # =====================================================
 # /王重生表
@@ -285,6 +331,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
