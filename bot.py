@@ -241,15 +241,18 @@ async def world_boss_list(ctx: discord.ApplicationContext):
             await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
 
 # =====================================================
-# 世界王提醒（修正版，可直接覆蓋）
+# 世界王提醒（穩定除錯版，可直接覆蓋）
 # =====================================================
 async def world_boss_reminder():
     await bot.wait_until_ready()
+    print("🟢 world_boss_reminder started")
+
     reminded = {}  # group_key -> first_respawn
 
     while not bot.is_closed():
         try:
             now = datetime.datetime.now(tz)
+            print("⏱️ reminder heartbeat:", now.strftime("%H:%M:%S"))
 
             # 清掉已過期的提醒
             reminded = {k: v for k, v in reminded.items() if v > now}
@@ -267,52 +270,64 @@ async def world_boss_reminder():
                     respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
                     upcoming.append({"name": r["王名稱"], "respawn": respawn})
                 except Exception as e:
-                    print("解析王資料失敗:", r, e)
-                    continue
+                    print("❌ 資料解析失敗:", r, e)
+
+            if not upcoming:
+                await asyncio.sleep(10)
+                continue
 
             upcoming.sort(key=lambda x: x["respawn"])
 
             # 分組（30 分鐘內視為同時期）
             boss_groups = []
-            if upcoming:
-                cur = [upcoming[0]]
-                for b in upcoming[1:]:
-                    if (b["respawn"] - cur[0]["respawn"]).total_seconds() <= 1800:
-                        cur.append(b)
-                    else:
-                        boss_groups.append(cur)
-                        cur = [b]
-                boss_groups.append(cur)
+            cur = [upcoming[0]]
+            for b in upcoming[1:]:
+                if (b["respawn"] - cur[0]["respawn"]).total_seconds() <= 1800:
+                    cur.append(b)
+                else:
+                    boss_groups.append(cur)
+                    cur = [b]
+            boss_groups.append(cur)
 
-            # 每組只在第一隻王前10分鐘提醒一次
             for g in boss_groups:
                 first = g[0]["respawn"]
-                key = first.strftime("%Y%m%d%H%M")
                 remind_time = first - datetime.timedelta(minutes=10)
+                key = first.strftime("%Y%m%d%H%M")
 
-                # ✅ 修正條件：只要未提醒且現在 >= 提醒時間就提醒
                 if key not in reminded and now >= remind_time:
+                    print("🔔 觸發提醒:", first.strftime("%Y/%m/%d %H:%M"))
+
                     max_len = max(len(b["name"]) for b in g)
-                    text_lines = [f"{b['name']:<{max_len}} {b['respawn'].strftime('%H:%M')}" for b in g]
-                    text = "\n".join(text_lines)
+                    text = "\n".join(
+                        f"{b['name']:<{max_len}} {b['respawn'].strftime('%H:%M')}"
+                        for b in g
+                    )
 
-                    channel = bot.get_channel(1463863523447668787)
-                    if channel:
-                        await channel.send(
-                            embed=discord.Embed(
-                                title="⏰ 世界王即將重生（同時期）",
-                                description="```" + text + "```",
-                                color=0xE67E22
-                            )
+                    channel_id = 1463863523447668787
+
+                    # ✅ 先嘗試 cache
+                    channel = bot.get_channel(channel_id)
+
+                    # ❗ cache 拿不到就強制 fetch（關鍵）
+                    if channel is None:
+                        print("⚠️ channel cache miss, fetching...")
+                        channel = await bot.fetch_channel(channel_id)
+
+                    await channel.send(
+                        embed=discord.Embed(
+                            title="⏰ 世界王即將重生（同時期）",
+                            description="```" + text + "```",
+                            color=0xE67E22
                         )
-                    # 標記已提醒
-                    reminded[key] = first
+                    )
 
-            # 🔹 sleep 10 秒更保險，不漏掉提醒
+                    reminded[key] = first
+                    print("✅ 提醒已送出")
+
             await asyncio.sleep(10)
 
         except Exception as e:
-            print("World boss reminder error:", e)
+            print("🔥 world_boss_reminder error:", e)
             await asyncio.sleep(10)
 
 # =====================================================
@@ -343,6 +358,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
