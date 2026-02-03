@@ -241,15 +241,17 @@ async def world_boss_list(ctx: discord.ApplicationContext):
             await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
 
 # =====================================================
-# 世界王提醒
+# 世界王提醒（修正版）
 # =====================================================
 async def world_boss_reminder():
     await bot.wait_until_ready()
-    reminded = {}
+    reminded = {}  # group_key -> first_respawn
 
     while not bot.is_closed():
         try:
             now = datetime.datetime.now(tz)
+
+            # 清掉已過期的提醒
             reminded = {k: v for k, v in reminded.items() if v > now}
 
             rows = await asyncio.to_thread(sheet.get_all_records)
@@ -258,12 +260,19 @@ async def world_boss_reminder():
             for r in rows:
                 if not r.get("死亡時間"):
                     continue
-                death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
-                respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
-                upcoming.append({"name": r["王名稱"], "respawn": respawn})
+                try:
+                    death = tz.localize(
+                        datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M")
+                    )
+                    respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
+                    upcoming.append({"name": r["王名稱"], "respawn": respawn})
+                except Exception as e:
+                    print("解析王資料失敗:", r, e)
+                    continue
 
             upcoming.sort(key=lambda x: x["respawn"])
 
+            # 分組（30 分鐘內視為同時期）
             boss_groups = []
             if upcoming:
                 cur = [upcoming[0]]
@@ -275,30 +284,15 @@ async def world_boss_reminder():
                         cur = [b]
                 boss_groups.append(cur)
 
+            # 每組只在第一隻王前10分鐘提醒一次
             for g in boss_groups:
                 first = g[0]["respawn"]
-                if first - datetime.timedelta(minutes=10) <= now < first:
-                    key = first.strftime("%Y%m%d%H%M")
-                    if key in reminded:
-                        continue
+                key = first.strftime("%Y%m%d%H%M")
 
-                    text = "\n".join(f"{b['name']} {b['respawn'].strftime('%H:%M')}" for b in g)
-                    channel = bot.get_channel(1463863523447668787)
-                    if channel:
-                        await channel.send(
-                            embed=discord.Embed(
-                                title="⏰ 世界王即將重生",
-                                description="```" + text + "```",
-                                color=0xE67E22
-                            )
-                        )
-                    reminded[key] = first
-
-            await asyncio.sleep(60)
-
-        except Exception as e:
-            print("World boss reminder error:", e)
-            await asyncio.sleep(60)
+                # ✅ 修正條件：只要未提醒且現在 >= 提醒時間就提醒
+                remind_time = first - datetime.timedelta(minutes=10)
+                if key not in reminded and now >= remind_time:
+                    max_len = max(len(b["name"]) for b in g)_
 
 # =====================================================
 # 啟動
@@ -328,6 +322,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
