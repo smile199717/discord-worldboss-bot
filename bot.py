@@ -73,26 +73,62 @@ async def show_group(
     embed.description = "```" + "\n".join(lines) + "```"
     await ctx.respond(embed=embed)
 
-# =====================================================
-# /登記
-# =====================================================
+# ===== 登記 =====
 @bot.slash_command(
     name="登記",
-    description="登記加入臨時群組",
+    description="選擇臨時群組並輸入你的名字",
     guild_ids=[GUILD_ID]
 )
-async def register(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
-    name: Option(str, "輸入登記時的名字")
-):
-    if name not in groups[group]:
-        groups[group].append(name)
-
+async def register(ctx, name: Option(str, "輸入你的名字")):
+    view = GroupSelectView(
+        action="register",
+        user=ctx.author,
+        name=name
+    )
     await ctx.respond(
-        f"✅ {name} 已加入 {group} 組",
+        "請選擇你要加入的臨時群組：",
+        view=view,
         ephemeral=True
     )
+
+# ===== 臨時群組選單 View =====
+class GroupSelectView(View):
+    def __init__(self, action: str, user: discord.User, name: str = None):
+        super().__init__(timeout=60)
+        self.action = action
+        self.user = user
+        self.name = name
+        self.add_item(GroupSelect())
+
+class GroupSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="A 組", value="A"),
+            discord.SelectOption(label="B 組", value="B"),
+            discord.SelectOption(label="C 組", value="C"),
+        ]
+        super().__init__(placeholder="請選擇臨時群組", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: GroupSelectView = self.view
+
+        if interaction.user.id != view.user.id:
+            await interaction.response.send_message(
+                "❌ 這不是你的操作選單",
+                ephemeral=True
+            )
+            return
+
+        group = self.values[0]
+
+        if view.action == "register":
+            if view.name not in groups[group]:
+                groups[group].append(view.name)
+            await interaction.response.send_message(
+                f"✅ {view.name} 已加入 {group} 組",
+                ephemeral=True
+            )
+        self.view.stop()
 
 # =====================================================
 # /登記清除
@@ -331,6 +367,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
