@@ -305,11 +305,21 @@ async def world_boss_reminder():
 
             for g in boss_groups:
                 first = g[0]["respawn"]
-                remind_time = first - datetime.timedelta(minutes=10)
                 key = first.strftime("%Y%m%d%H%M")
 
-                if key not in reminded and now >= remind_time:
-                    print("🔔 觸發提醒:", first.strftime("%Y/%m/%d %H:%M"))
+                # ✅【關鍵修正】用剩餘時間區間判斷，永不漏
+                delta = first - now
+
+                if (
+                    key not in reminded
+                    and datetime.timedelta(seconds=0) < delta <= datetime.timedelta(minutes=10)
+                ):
+                    print(
+                        "🔔 觸發提醒:",
+                        first.strftime("%Y/%m/%d %H:%M"),
+                        "剩餘:",
+                        delta,
+                    )
 
                     max_len = max(len(b["name"]) for b in g)
                     text = "\n".join(
@@ -322,7 +332,7 @@ async def world_boss_reminder():
                     # ✅ 先嘗試 cache
                     channel = bot.get_channel(channel_id)
 
-                    # ❗ cache 拿不到就強制 fetch（關鍵）
+                    # ❗ cache 拿不到就強制 fetch
                     if channel is None:
                         print("⚠️ channel cache miss, fetching...")
                         channel = await bot.fetch_channel(channel_id)
@@ -362,6 +372,7 @@ Thread(
 ).start()
 
 bot.run(TOKEN)
+
 
 
 
