@@ -32,23 +32,15 @@ gc = gspread.authorize(creds)
 sheet = gc.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
 # ===== Bot（最終確認版）=====
-intents = discord.Intents.default()
-intents.members = True
+@bot.event
+async def on_ready():
+    print(f"✅ 已登入 {bot.user}")
+    bot.add_view(RoleSelectView())
 
-class MyBot(discord.Bot):
-    async def setup_hook(self):
-        print("🟢 setup_hook called")
-        asyncio.create_task(world_boss_reminder())
-
-    async def on_connect(self):
-        print("🔌 Discord gateway connected")
-
-    async def on_ready(self):
-        print(f"✅ Logged in as {self.user} (ID: {self.user.id})")
-
-bot = MyBot(intents=intents)
-
-print("🚀 Starting Discord bot...")
+    # ⭐⭐⭐ 關鍵：只啟動一次世界王提醒
+    if not hasattr(bot, "world_boss_task"):
+        bot.world_boss_task = bot.loop.create_task(world_boss_reminder())
+        print("🟢 world_boss_reminder task created")
 
 # ===== 臨時群組 =====
 groups = {"A": [], "B": [], "C": []}
@@ -336,24 +328,8 @@ async def world_boss_reminder():
             print("🔥 world_boss_reminder error:", e)
             await asyncio.sleep(10)
 
-# ===== Render keep-alive =====
-from flask import Flask
-from threading import Thread
-
-app = Flask("keep-alive")
-
-@app.route("/")
-def home():
-    return "Bot running"
-
-Thread(
-    target=lambda: app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
-).start()
-
 bot.run(TOKEN)
+
 
 
 
