@@ -60,21 +60,35 @@ groups = {"A": [], "B": [], "C": []}
 
 class RoleSelectView(View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # ✅ 永久 View
 
-    @discord.ui.button(label="最強眾神-軍團成員", style=discord.ButtonStyle.primary, emoji="💖")
+    @discord.ui.button(
+        label="最強眾神-軍團成員",
+        style=discord.ButtonStyle.primary,
+        emoji="💖",
+        custom_id="role_select_legion"  # ✅ 必須要有
+    )
     async def role_1(self, interaction: discord.Interaction, button):
         role = interaction.guild.get_role(1428021750846718104)
         if role:
             await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ 已領取軍團成員", ephemeral=True)
+            await interaction.response.send_message(
+                "✅ 已領取軍團成員", ephemeral=True
+            )
 
-    @discord.ui.button(label="摯友", style=discord.ButtonStyle.secondary, emoji="🪐")
+    @discord.ui.button(
+        label="摯友",
+        style=discord.ButtonStyle.secondary,
+        emoji="🪐",
+        custom_id="role_select_friend"  # ✅ 必須要有
+    )
     async def role_2(self, interaction: discord.Interaction, button):
         role = interaction.guild.get_role(1428038147094085743)
         if role:
             await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
+            await interaction.response.send_message(
+                "✅ 已領取摯友", ephemeral=True
+            )
 
 # =====================================================
 # Slash 指令：登記 / 名單 / 清除 / 抽獎 / 刪除
@@ -233,6 +247,7 @@ async def on_ready():
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
