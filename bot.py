@@ -290,10 +290,30 @@ async def on_ready():
         print("🟢 世界王提醒任務已啟動")
 
 # =====================================================
+# http
+# =====================================================
+
+from flask import Flask
+from threading import Thread
+import os
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running"
+
+def run_web():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
+Thread(target=run_web).start()
+
+# =====================================================
 # Run
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
