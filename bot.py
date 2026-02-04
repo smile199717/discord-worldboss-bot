@@ -1,4 +1,7 @@
-# bot.py
+# =====================================================
+# bot.py — 世界王提醒最終穩定版
+# =====================================================
+
 import discord
 from discord import Option
 import random
@@ -6,20 +9,26 @@ import os
 import datetime
 import asyncio
 import pytz
-from discord.ui import View, Button
+from discord.ui import View
 import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# ===== Token =====
+# =====================================================
+# Token / 基本設定
+# =====================================================
+
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise RuntimeError("❌ DISCORD_TOKEN 沒有設定到環境變數")
 
 GUILD_ID = 1428004541340717058
-
-# ===== Google Sheets =====
+REMIND_CHANNEL_ID = 1463863523447668787
 tz = pytz.timezone("Asia/Taipei")
+
+# =====================================================
+# Google Sheets
+# =====================================================
 
 scope = [
     "https://spreadsheets.google.com/feeds",
@@ -31,38 +40,50 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
-# ===== Bot（最終確認版）=====
-@bot.event
-async def on_ready():
-    print(f"✅ 已登入 {bot.user}")
-    bot.add_view(RoleSelectView())
+# =====================================================
+# Bot
+# =====================================================
 
-    # ⭐⭐⭐ 關鍵：只啟動一次世界王提醒
-    if not hasattr(bot, "world_boss_task"):
-        bot.world_boss_task = bot.loop.create_task(world_boss_reminder())
-        print("🟢 world_boss_reminder task created")
+intents = discord.Intents.default()
+intents.members = True
+bot = discord.Bot(intents=intents)
 
-# ===== 臨時群組 =====
+# =====================================================
+# 臨時群組
+# =====================================================
+
 groups = {"A": [], "B": [], "C": []}
 
 # =====================================================
-# /登記名單（表格、公開）
+# 身分組 View
 # =====================================================
-@bot.slash_command(
-    name="登記名單",
-    description="查看臨時群組名單（表格）",
-    guild_ids=[GUILD_ID]
-)
-async def show_group(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"])
-):
-    members = groups[group]
 
-    embed = discord.Embed(
-        title=f"📋 {group} 組登記名單",
-        color=0x1ABC9C
-    )
+class RoleSelectView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="最強眾神-軍團成員", style=discord.ButtonStyle.primary, emoji="💖")
+    async def role_1(self, interaction: discord.Interaction, button):
+        role = interaction.guild.get_role(1428021750846718104)
+        if role:
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message("✅ 已領取軍團成員", ephemeral=True)
+
+    @discord.ui.button(label="摯友", style=discord.ButtonStyle.secondary, emoji="🪐")
+    async def role_2(self, interaction: discord.Interaction, button):
+        role = interaction.guild.get_role(1428038147094085743)
+        if role:
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
+
+# =====================================================
+# Slash 指令：登記 / 名單 / 清除 / 抽獎 / 刪除
+# =====================================================
+
+@bot.slash_command(name="登記名單", guild_ids=[GUILD_ID])
+async def show_group(ctx, group: Option(str, choices=["A", "B", "C"])):
+    members = groups[group]
+    embed = discord.Embed(title=f"📋 {group} 組登記名單", color=0x1ABC9C)
 
     if not members:
         embed.description = "（目前沒有任何登記）"
@@ -70,172 +91,92 @@ async def show_group(
         return
 
     max_len = max(len(name) for name in members)
-    header = f"{'編號':<4} {'名稱':<{max_len}}"
-    lines = [header, "─" * (len(header) + 2)]
-
-    for idx, name in enumerate(members, start=1):
-        lines.append(f"{idx:<4} {name:<{max_len}}")
+    lines = [f"{'編號':<4} {'名稱':<{max_len}}", "─" * (max_len + 8)]
+    for i, name in enumerate(members, 1):
+        lines.append(f"{i:<4} {name:<{max_len}}")
 
     embed.description = "```" + "\n".join(lines) + "```"
     await ctx.respond(embed=embed)
 
-# ===== 登記 =====
-@bot.slash_command(
-    name="登記",
-    description="一次選組別並輸入你的名字完成登記",
-    guild_ids=[GUILD_ID]
-)
-async def register(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
-    name: Option(str, "輸入你的名字")
-):
+@bot.slash_command(name="登記", guild_ids=[GUILD_ID])
+async def register(ctx, group: Option(str, choices=["A", "B", "C"]), name: str):
     if name in groups[group]:
-        await ctx.respond(f"⚠️ {name} 已經在 {group} 組了", ephemeral=True)
+        await ctx.respond("⚠️ 已登記", ephemeral=True)
         return
-
     groups[group].append(name)
     await ctx.respond(f"✅ {name} 已加入 {group} 組", ephemeral=True)
 
-# =====================================================
-# /登記清除
-# =====================================================
-@bot.slash_command(
-    name="登記清除",
-    description="清空臨時群組",
-    guild_ids=[GUILD_ID]
-)
-async def clear_group(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"])
-):
+@bot.slash_command(name="登記清除", guild_ids=[GUILD_ID])
+async def clear_group(ctx, group: Option(str, choices=["A", "B", "C"])):
     groups[group].clear()
     await ctx.respond(f"🗑️ {group} 組已清空", ephemeral=True)
 
-# =====================================================
-# /抽獎
-# =====================================================
-@bot.slash_command(
-    name="抽獎",
-    description="從臨時群組中抽獎",
-    guild_ids=[GUILD_ID]
-)
-async def draw(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
-    prizes: Option(str, "輸入獎品（用 / 分隔）")
-):
+@bot.slash_command(name="抽獎", guild_ids=[GUILD_ID])
+async def draw(ctx, group: Option(str, choices=["A", "B", "C"]), prizes: str):
     members = groups[group].copy()
     if not members:
-        await ctx.respond("⚠️ 該群組沒有人可以抽", ephemeral=True)
+        await ctx.respond("⚠️ 沒有人可以抽", ephemeral=True)
         return
 
     prize_list = [p.strip() for p in prizes.split("/") if p.strip()]
     random.shuffle(members)
 
-    results = []
+    result = []
     for i, prize in enumerate(prize_list):
         if i >= len(members):
             break
-        results.append(f"🎉 {members[i]} 抽中 {prize}")
+        result.append(f"🎉 {members[i]} 抽中 {prize}")
 
-    await ctx.respond("\n".join(results))
+    await ctx.respond("\n".join(result))
 
-# =====================================================
-# /刪除
-# =====================================================
-@bot.slash_command(
-    name="刪除",
-    description="刪除自己在臨時群組的登記（請輸入登記時的名字）",
-    guild_ids=[GUILD_ID]
-)
-async def remove_entry(
-    ctx,
-    group: Option(str, "選擇臨時群組", choices=["A", "B", "C"]),
-    name: Option(str, "輸入登記時使用的名字")
-):
+@bot.slash_command(name="刪除", guild_ids=[GUILD_ID])
+async def remove_entry(ctx, group: Option(str, choices=["A", "B", "C"]), name: str):
     if name not in groups[group]:
-        await ctx.respond(f"⚠️ {name} 不在 {group} 組的登記名單中", ephemeral=True)
+        await ctx.respond("⚠️ 不在名單中", ephemeral=True)
+        return
+    groups[group].remove(name)
+    await ctx.respond(f"🗑️ 已移除 {name}", ephemeral=True)
+
+# =====================================================
+# Slash 指令：王重生表
+# =====================================================
+
+@bot.slash_command(name="王重生表", guild_ids=[GUILD_ID])
+async def world_boss_list(ctx: discord.ApplicationContext):
+    await ctx.defer()
+    now = datetime.datetime.now(tz)
+
+    rows = await asyncio.to_thread(sheet.get_all_records)
+    rows = [r for r in rows if r.get("死亡時間")]
+
+    if not rows:
+        await ctx.followup.send("目前沒有世界王資料")
         return
 
-    groups[group].remove(name)
-    await ctx.respond(f"🗑️ 已將 **{name}** 從 {group} 組移除", ephemeral=True)
+    lines = []
+    for r in rows:
+        death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
+        respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
+        remain = max(0, int((respawn - now).total_seconds() // 60))
+        lines.append(f"{r['王名稱']} | {respawn.strftime('%H:%M')} | {remain} 分")
+
+    await ctx.followup.send("```" + "\n".join(lines) + "```")
 
 # =====================================================
-# 身分組 View
+# 世界王提醒（10 分鐘必定觸發）
 # =====================================================
-class RoleSelectView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
 
-    @discord.ui.button(label="最強眾神-軍團成員", style=discord.ButtonStyle.primary, emoji="💖")
-    async def role_1(self, interaction, button):
-        role = interaction.guild.get_role(1428021750846718104)
-        if role:
-            await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ 已領取軍團成員", ephemeral=True)
-
-    @discord.ui.button(label="摯友", style=discord.ButtonStyle.secondary, emoji="🪐")
-    async def role_2(self, interaction, button):
-        role = interaction.guild.get_role(1428038147094085743)
-        if role:
-            await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ 已領取摯友", ephemeral=True)
-
-# =====================================================
-# /王重生表
-# =====================================================
-@bot.slash_command(
-    name="王重生表",
-    description="列出所有世界王的重生時間",
-    guild_ids=[GUILD_ID]
-)
-async def world_boss_list(ctx: discord.ApplicationContext):
-    try:
-        now = datetime.datetime.now(tz)
-        rows = await asyncio.to_thread(sheet.get_all_records)
-
-        filtered = [r for r in rows if r.get("死亡時間")]
-        if not filtered:
-            await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
-            return
-
-        name_width = max(len(r["王名稱"]) for r in filtered) + 2
-        lines = [f"{'王名稱':<{name_width}} 重生 剩餘(分)", "─" * (name_width + 10)]
-
-        for r in filtered:
-            death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
-            respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
-            remain = max(0, int((respawn - now).total_seconds() // 60))
-            lines.append(f"{r['王名稱']:<{name_width}} {respawn.strftime('%H:%M')} {remain}")
-
-        await ctx.respond(
-            embed=discord.Embed(
-                title="📜 世界王重生表",
-                description="```" + "\n".join(lines) + "```",
-                color=0x3498DB
-            )
-        )
-
-    except Exception as e:
-        if not ctx.response.is_done():
-            await ctx.respond(f"❌ 發生錯誤：{e}", ephemeral=True)
-
-# =====================================================
-# 世界王提醒（穩定除錯版，可直接覆蓋）
-# =====================================================
 async def world_boss_reminder():
     await bot.wait_until_ready()
     print("🟢 world_boss_reminder started")
 
-    reminded = {}  # group_key -> first_respawn
+    reminded = {}
 
     while not bot.is_closed():
         try:
             now = datetime.datetime.now(tz)
-            print("⏱️ reminder heartbeat:", now.strftime("%H:%M:%S"))
+            print("⏱️ heartbeat:", now.strftime("%H:%M:%S"))
 
-            # 清掉已過期的提醒
             reminded = {k: v for k, v in reminded.items() if v > now}
 
             rows = await asyncio.to_thread(sheet.get_all_records)
@@ -244,91 +185,55 @@ async def world_boss_reminder():
             for r in rows:
                 if not r.get("死亡時間"):
                     continue
-                try:
-                    death = tz.localize(
-                        datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M")
-                    )
-                    respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
-                    upcoming.append({"name": r["王名稱"], "respawn": respawn})
-                except Exception as e:
-                    print("❌ 資料解析失敗:", r, e)
-
-            if not upcoming:
-                await asyncio.sleep(10)
-                continue
+                death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
+                respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
+                upcoming.append({"name": r["王名稱"], "respawn": respawn})
 
             upcoming.sort(key=lambda x: x["respawn"])
 
-            # 分組（30 分鐘內視為同時期）
-            boss_groups = []
-            cur = [upcoming[0]]
-            for b in upcoming[1:]:
-                if (b["respawn"] - cur[0]["respawn"]).total_seconds() <= 1800:
-                    cur.append(b)
-                else:
-                    boss_groups.append(cur)
-                    cur = [b]
-            boss_groups.append(cur)
+            for b in upcoming:
+                delta = b["respawn"] - now
+                key = b["respawn"].strftime("%Y%m%d%H%M")
 
-            for g in boss_groups:
-                first = g[0]["respawn"]
-                key = first.strftime("%Y%m%d%H%M")
+                print("🧪 CHECK", b["name"], delta)
 
-                # ✅【關鍵修正】用剩餘時間區間判斷，永不漏
-                delta = first - now
-
-                print(
-    "🧪 CHECK",
-    "now =", now.strftime("%Y/%m/%d %H:%M:%S"),
-    "| first =", first.strftime("%Y/%m/%d %H:%M:%S"),
-    "| delta =", delta,
-)
-                
-                if (
-                    key not in reminded
-                    and datetime.timedelta(seconds=0) < delta <= datetime.timedelta(minutes=10)
-                ):
-                    print(
-                        "🔔 觸發提醒:",
-                        first.strftime("%Y/%m/%d %H:%M"),
-                        "剩餘:",
-                        delta,
-                    )
-
-                    max_len = max(len(b["name"]) for b in g)
-                    text = "\n".join(
-                        f"{b['name']:<{max_len}} {b['respawn'].strftime('%H:%M')}"
-                        for b in g
-                    )
-
-                    channel_id = 1463863523447668787
-
-                    # ✅ 先嘗試 cache
-                    channel = bot.get_channel(channel_id)
-
-                    # ❗ cache 拿不到就強制 fetch
-                    if channel is None:
-                        print("⚠️ channel cache miss, fetching...")
-                        channel = await bot.fetch_channel(channel_id)
-
+                if key not in reminded and datetime.timedelta(0) < delta <= datetime.timedelta(minutes=10):
+                    channel = bot.get_channel(REMIND_CHANNEL_ID) or await bot.fetch_channel(REMIND_CHANNEL_ID)
                     await channel.send(
                         embed=discord.Embed(
-                            title="⏰ 世界王即將重生（同時期）",
-                            description="```" + text + "```",
+                            title="⏰ 世界王即將重生（10 分鐘）",
+                            description=f"```{b['name']} {b['respawn'].strftime('%H:%M')}```",
                             color=0xE67E22
                         )
                     )
-
-                    reminded[key] = first
-                    print("✅ 提醒已送出")
+                    reminded[key] = b["respawn"]
+                    print("✅ 已提醒", b["name"])
 
             await asyncio.sleep(10)
 
         except Exception as e:
-            print("🔥 world_boss_reminder error:", e)
+            print("🔥 reminder error:", e)
             await asyncio.sleep(10)
 
+# =====================================================
+# on_ready
+# =====================================================
+
+@bot.event
+async def on_ready():
+    print(f"✅ 已登入 {bot.user}")
+    bot.add_view(RoleSelectView())
+
+    if not hasattr(bot, "boss_task"):
+        bot.boss_task = bot.loop.create_task(world_boss_reminder())
+        print("🟢 世界王提醒任務已啟動")
+
+# =====================================================
+# Run
+# =====================================================
+
 bot.run(TOKEN)
+
 
 
 
