@@ -155,30 +155,21 @@ async def remove_entry(ctx, group: Option(str, choices=["A", "B", "C"]), name: s
 # Slash 指令：王重生表
 # =====================================================
 
-from wcwidth import wcswidth  # pip install wcwidth
-
-@bot.slash_command(
-    name="王重生表",
-    description="列出所有世界王的重生時間（美化版）",
-    guild_ids=[GUILD_ID]
-)
+@bot.slash_command(name="王重生表", description="列出世界王重生時間（美化）", guild_ids=[GUILD_ID])
 async def world_boss_list(ctx: discord.ApplicationContext):
     try:
         now = datetime.datetime.now(tz)
         rows = await asyncio.to_thread(sheet.get_all_records)
-
-        # 過濾掉沒死亡時間的
         filtered = [r for r in rows if r.get("死亡時間")]
         if not filtered:
             await ctx.respond("目前沒有已登記的世界王資料", ephemeral=True)
             return
 
-        # 計算王名稱最大寬度（考慮中文寬度）
-        name_width = max(wcswidth(r["王名稱"]) for r in filtered)
+        # 計算名稱欄位寬度（簡單空格）
+        name_width = max(len(r["王名稱"]) for r in filtered)
         respawn_width = len("重生時間")
         remain_width = len("剩餘時間(分鐘)")
 
-        # 標題列
         header = f"{'王名稱':<{name_width}}  {'重生時間':<{respawn_width}}  {'剩餘時間(分鐘)':<{remain_width}}"
         lines = [header, "─" * len(header)]
 
@@ -186,19 +177,12 @@ async def world_boss_list(ctx: discord.ApplicationContext):
             death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
             respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
             remain = max(0, int((respawn - now).total_seconds() // 60))
-
-            # 計算中文補齊
-            name = r["王名稱"]
-            pad = name_width - wcswidth(name)
-            line = f"{name}{' ' * pad}  {respawn.strftime('%H:%M'):<{respawn_width}}  {remain:<{remain_width}}"
+            line = f"{r['王名稱']:<{name_width}}  {respawn.strftime('%H:%M'):<{respawn_width}}  {remain:<{remain_width}}"
             lines.append(line)
 
-        embed = discord.Embed(
-            title="📜 世界王重生表",
-            description="```" + "\n".join(lines) + "```",
-            color=0x3498DB
-        )
-
+        embed = discord.Embed(title="📜 世界王重生表",
+                              description="```" + "\n".join(lines) + "```",
+                              color=0x3498DB)
         await ctx.respond(embed=embed)
 
     except Exception as e:
@@ -342,6 +326,7 @@ Thread(target=run_web).start()
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
