@@ -177,56 +177,110 @@ async def world_boss_list(ctx: discord.ApplicationContext):
     await ctx.followup.send("```" + "\n".join(lines) + "```")
 
 # =====================================================
-# 世界王提醒（10 分鐘必定觸發）
+# 世界王提醒（30 分鐘分組＋10 分鐘前提醒＋美化版）
 # =====================================================
-
 async def world_boss_reminder():
     await bot.wait_until_ready()
     print("🟢 world_boss_reminder started")
 
-    reminded = {}
+    reminded = {}  # group_key -> first_respawn
 
     while not bot.is_closed():
         try:
             now = datetime.datetime.now(tz)
             print("⏱️ heartbeat:", now.strftime("%H:%M:%S"))
 
+            # 清掉已經重生過的群組（讓下一輪能再提醒）
             reminded = {k: v for k, v in reminded.items() if v > now}
 
             rows = await asyncio.to_thread(sheet.get_all_records)
-            upcoming = []
+            bosses = []
 
+            # 1️⃣ 收集所有王的重生時間
             for r in rows:
                 if not r.get("死亡時間"):
                     continue
-                death = tz.localize(datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M"))
-                respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
-                upcoming.append({"name": r["王名稱"], "respawn": respawn})
+                try:
+                    death = tz.localize(
+                        datetime.datetime.strptime(r["死亡時間"], "%Y/%m/%d %H:%M")
+                    )
+                    respawn = death + datetime.timedelta(hours=int(r["重生小時"]))
+                    bosses.append({
+                        "name": r["王名稱"],
+                        "respawn": respawn
+                    })
+                except Exception as e:
+                    print("❌ 資料解析失敗:", r, e)
 
-            upcoming.sort(key=lambda x: x["respawn"])
+            if not bosses:
+                await asyncio.sleep(10)
+                continue
 
-            for b in upcoming:
-                delta = b["respawn"] - now
-                key = b["respawn"].strftime("%Y%m%d%H%M")
+            # 2️⃣ 依重生時間排序
+            bosses.sort(key=lambda b: b["respawn"])
 
-                print("🧪 CHECK", b["name"], delta)
+            # 3️⃣ 30 分鐘內分組
+            groups = []
+            current_group = [bosses[0]]
 
-                if key not in reminded and datetime.timedelta(0) < delta <= datetime.timedelta(minutes=10):
-                    channel = bot.get_channel(REMIND_CHANNEL_ID) or await bot.fetch_channel(REMIND_CHANNEL_ID)
+            for boss in bosses[1:]:
+                if (boss["respawn"] - current_group[0]["respawn"]).total_seconds() <= 30 * 60:
+                    current_group.append(boss)
+                else:
+                    groups.append(current_group)
+                    current_group = [boss]
+
+            groups.append(current_group)
+
+            # 4️⃣ 每組只在「第一隻王重生前 10 分鐘」提醒
+            for group in groups:
+                first_respawn = group[0]["respawn"]
+                delta = first_respawn - now
+
+                group_key = first_respawn.strftime("%Y%m%d%H%M")
+
+                print(
+                    "🧪 GROUP CHECK",
+                    [b["name"] for b in group],
+                    "delta:",
+                    delta
+                )
+
+                if (
+                    group_key not in reminded
+                    and datetime.timedelta(seconds=0) < delta <= datetime.timedelta(minutes=10)
+                ):
+                    # 5️⃣ 建立對齊表格（美化）
+                    max_name_len = max(len(b["name"]) for b in group)
+                    header = f"{'王名稱':<{max_name_len}}  重生時間"
+                    lines = [header, "─" * (len(header) + 2)]
+
+                    for b in group:
+                        lines.append(
+                            f"{b['name']:<{max_name_len}}  {b['respawn'].strftime('%H:%M')}"
+                        )
+
+                    table = "```" + "\n".join(lines) + "```"
+
+                    channel = bot.get_channel(REMIND_CHANNEL_ID)
+                    if channel is None:
+                        channel = await bot.fetch_channel(REMIND_CHANNEL_ID)
+
                     await channel.send(
                         embed=discord.Embed(
-                            title="⏰ 世界王即將重生（10 分鐘）",
-                            description=f"```{b['name']} {b['respawn'].strftime('%H:%M')}```",
+                            title="⏰ 世界王即將重生（10 分鐘內）",
+                            description=table,
                             color=0xE67E22
                         )
                     )
-                    reminded[key] = b["respawn"]
-                    print("✅ 已提醒", b["name"])
+
+                    reminded[group_key] = first_respawn
+                    print("✅ 已提醒群組:", group_key)
 
             await asyncio.sleep(10)
 
         except Exception as e:
-            print("🔥 reminder error:", e)
+            print("🔥 world_boss_reminder error:", e)
             await asyncio.sleep(10)
 
 # =====================================================
@@ -247,6 +301,7 @@ async def on_ready():
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
