@@ -55,18 +55,17 @@ bot = discord.Bot(intents=intents)
 groups = {"A": [], "B": [], "C": []}
 
 # =====================================================
-# 身分組 View
+# 身分組 View（自訂按鈕貼圖）
 # =====================================================
-
 class RoleSelectView(View):
     def __init__(self):
-        super().__init__(timeout=None)  # ✅ 永久 View
+        super().__init__(timeout=None)  # 永久 View
 
     @discord.ui.button(
         label="最強眾神-軍團成員",
         style=discord.ButtonStyle.primary,
-        emoji="💖",
-        custom_id="role_select_legion"  # ✅ 必須要有
+        emoji="<:custom1:1428198044855304243>",  # 自訂貼圖 ID
+        custom_id="role_select_legion"
     )
     async def role_1(self, interaction: discord.Interaction, button):
         role = interaction.guild.get_role(1428021750846718104)
@@ -77,10 +76,10 @@ class RoleSelectView(View):
             )
 
     @discord.ui.button(
-        label="摯友",
+        label="摯友-副本/聖域/觀戰",
         style=discord.ButtonStyle.secondary,
-        emoji="🪐",
-        custom_id="role_select_friend"  # ✅ 必須要有
+        emoji="<:custom2:1428198051671048385>",  # 自訂貼圖 ID
+        custom_id="role_select_friend"
     )
     async def role_2(self, interaction: discord.Interaction, button):
         role = interaction.guild.get_role(1428038147094085743)
@@ -89,6 +88,39 @@ class RoleSelectView(View):
             await interaction.response.send_message(
                 "✅ 已領取摯友", ephemeral=True
             )
+
+# =====================================================
+# /身分組 指令（介紹文＋按鈕）
+# =====================================================
+@bot.slash_command(
+    name="身分組",
+    description="領取你的身分組",
+    guild_ids=[GUILD_ID]
+)
+async def send_role_panel(ctx):
+    intro_text = (
+        "1️⃣ 選擇身分組才看的到頻道‼️\n"
+        "最強眾神-軍團成員\n"
+        "摯友-副本/聖域/觀戰好朋友\n\n"
+        "2️⃣ 軍團成員更改伺服器名稱\n"
+        "本人暱稱-職業/遊戲ID\n"
+        "範例 小妮-治癒/窩肆妮妮\n\n"
+        "3️⃣ 軍團成員至頻道📚-重點公告區\n"
+        "最上方綜合EXCEL填寫基本資料\n\n"
+        "▫️ 頻道分類\n"
+        "📚-遊戲攻略/重點公告區\n"
+        "(重點公告自行每日抽空查閱有無最新資訊)\n"
+        "♻️-交易交換收購\n"
+        "👹-王出前10分鐘提醒/登記/抽獎"
+    )
+
+    embed = discord.Embed(
+        title="🎯 選擇身分組",
+        description=intro_text,
+        color=0x2ECC71
+    )
+
+    await ctx.respond(embed=embed, view=RoleSelectView())
 
 # =====================================================
 # Slash 指令：登記 / 名單 / 清除 / 抽獎 / 刪除
@@ -326,6 +358,7 @@ Thread(target=run_web).start()
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
