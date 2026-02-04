@@ -188,8 +188,7 @@ async def world_boss_reminder():
     while not bot.is_closed():
         try:
             now = datetime.datetime.now(tz)
-            print("⏱️ heartbeat:", now.strftime("%H:%M:%S"))
-
+           
             # 清掉已經重生過的群組（讓下一輪能再提醒）
             reminded = {k: v for k, v in reminded.items() if v > now}
 
@@ -239,13 +238,7 @@ async def world_boss_reminder():
 
                 group_key = first_respawn.strftime("%Y%m%d%H%M")
 
-                print(
-                    "🧪 GROUP CHECK",
-                    [b["name"] for b in group],
-                    "delta:",
-                    delta
-                )
-
+                
                 if (
                     group_key not in reminded
                     and datetime.timedelta(seconds=0) < delta <= datetime.timedelta(minutes=10)
@@ -281,7 +274,7 @@ async def world_boss_reminder():
 
         except Exception as e:
             print("🔥 world_boss_reminder error:", e)
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)
 
 # =====================================================
 # on_ready
@@ -301,6 +294,7 @@ async def on_ready():
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
