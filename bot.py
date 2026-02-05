@@ -59,35 +59,57 @@ groups = {"A": [], "B": [], "C": []}
 # =====================================================
 class RoleSelectView(View):
     def __init__(self):
-        super().__init__(timeout=None)  # 永久 View
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="最強眾神-軍團成員",
         style=discord.ButtonStyle.primary,
-        emoji="<:custom1:1428198044855304243>",  # 自訂貼圖 ID
+        emoji="<:custom1:1428198044855304243>",
         custom_id="role_select_legion"
     )
-    async def role_1(self, interaction: discord.Interaction, button):
+    async def role_1(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         role = interaction.guild.get_role(1428021750846718104)
-        if role:
-            await interaction.user.add_roles(role)
+        if role is None:
             await interaction.response.send_message(
-                "✅ 已領取軍團成員", ephemeral=True
+                "❌ 找不到身分組，請聯絡管理員",
+                ephemeral=True
             )
+            return
+
+        await interaction.user.add_roles(role)
+        await interaction.response.send_message(
+            "✅ 已領取軍團成員",
+            ephemeral=True
+        )
 
     @discord.ui.button(
         label="摯友-副本/聖域/觀戰",
         style=discord.ButtonStyle.secondary,
-        emoji="<:custom2:1428198051671048385>",  # 自訂貼圖 ID
+        emoji="<:custom2:1428198051671048385>",
         custom_id="role_select_friend"
     )
-    async def role_2(self, interaction: discord.Interaction, button):
+    async def role_2(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         role = interaction.guild.get_role(1428038147094085743)
-        if role:
-            await interaction.user.add_roles(role)
+        if role is None:
             await interaction.response.send_message(
-                "✅ 已領取摯友", ephemeral=True
+                "❌ 找不到身分組，請聯絡管理員",
+                ephemeral=True
             )
+            return
+
+        await interaction.user.add_roles(role)
+        await interaction.response.send_message(
+            "✅ 已領取摯友",
+            ephemeral=True
+        )
 
 # =====================================================
 # /身分組 指令（介紹文＋按鈕）
@@ -331,7 +353,7 @@ async def on_ready():
     print(f"✅ 已登入 {bot.user}")
     bot.add_view(RoleSelectView())
 
-    if not hasattr(bot, "boss_task"):
+    if not hasattr(bot, "world_boss_task") or bot.world_boss_task.done():
         bot.boss_task = bot.loop.create_task(world_boss_reminder())
         print("🟢 世界王提醒任務已啟動")
 
@@ -359,6 +381,7 @@ Thread(target=run_web).start()
 # =====================================================
 
 bot.run(TOKEN)
+
 
 
 
